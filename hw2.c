@@ -10,54 +10,83 @@
 #include <ctype.h>
 #include <signal.h>
 #include <fcntl.h>
-//MAXLINE -> 80 //given in assignment details
-// MAX ARGS -> 80 //given in assignment details
-//MAXJOB ->5 //given in assignment details
+
+#define MAX_LINE 80     //given in assignment details
+#define MAX_ARGC 80     //given in assignment details
+#define MAX_JOB 5       //given in assignment details
+
+struct job_Info {
+    pid_t pid;
+    int job_id;
+    char cmd[MAX_LINE];
+};
+
+void eval(char **argv){
 
 
-void eval(char*input){
-   // char*argv[80]; for later
-    char* token;
-    int bg; //whether the job runs in the foreground or bg for later
-    pid_t pid; //process_id for later 
-    char cwd[80]; //should probably make a global for the ints for the max amts
-   
-
-    //bg = parseline(input,argv); for later 
-    //built_in command functions
-    token = strtok(input, " \t\n"); //first token 
-    
-    if(strcmp(token,"cd") == 0){  
-        token = strtok(NULL," \t\n"); //token should now equal the second argument
-        chdir(token);
-    
+    char cwd[MAX_LINE];
+    // First arugment in the argv[] is the command
+    // Other arguments could be a path, executable 
+    // Built-in commands
+    if (strcmp(argv[0], "cd") == 0) {
+        //printf("in cd, path is: %s", argv[1]);
+        chdir(argv[1]);
     }
-    else if(strcmp(token,"pwd")== 0){
-        printf("%s\n",getcwd(cwd,sizeof(cwd)));
-        
+    else if (strcmp(argv[0], "pwd") == 0) {
+        printf("%s\n", getcwd(cwd,sizeof(cwd)));
     }
-    else if(strcmp(token,"quit")== 0){
+    else if (strcmp(argv[0], "quit") == 0) {
         exit(0);
+    }
+    else if (strcmp(argv[0], "jobs") == 0) {
+        // do something
+    }
+    else if (strcmp(argv[0], "fg") == 0) {
+        // do something
+    }
+    else if (strcmp(argv[0], "bg") == 0) {
+        // do something
+    }
+    else {      // not a built-in command. change to another stage
+        // do something
+    }
+
+}
+
+void distributeInput(char* input, int* argc, char** argv) {
+    char* token;        
+    const char* delims = " \t\n";
+    token = strtok(input, delims);      // first token is the command
+    while (token != NULL) {             // getting next arguments in to argv
+        printf("tokens: %s\n", token);
+        argv[(*argc)++] = token;
+        token = strtok(NULL, delims);
     }
 }
 
 
-
 int main() {
-    //each argument is seperated by a space or tab character
-    
-    char  input[80];
+     
+    char input[MAX_LINE];  // Input from user. Each argument is seperated by a space or tab character 
+    int argc;               // Number of arguments from the input
+    char* argv[MAX_LINE];  // List of arguments. First argument would be the command
+      
  
 
     while(1) //loop until quit is entered
     {
+        fflush(stdin);
+        argc = 0;   // reset number of arguments every time getting a new input
         printf("prompt >");
-        fgets(input,80,stdin);  //user input
+        
+        fgets(input, MAX_LINE, stdin);          // Get user input
+        distributeInput(input, &argc, argv);    // Distribute arguments from user input
 
         if(feof(stdin)){
             exit(0);
         }
-        eval(input);
+        eval(argv);     // evaluate the list of arguments
+        fflush(stdin);
 
         
     }
