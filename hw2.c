@@ -10,10 +10,17 @@
 #include <ctype.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #define MAX_LINE 80     //given in assignment details
 #define MAX_ARGC 80     //given in assignment details
 #define MAX_JOB 5       //given in assignment details
+
+enum job_Status {
+    FOREGROUND,
+    BACKGROUND,
+    STOPPED
+};
 
 struct job_Info {
     pid_t pid;
@@ -26,7 +33,8 @@ void eval(char **argv){
 
     char cwd[MAX_LINE];
     // First arugment in the argv[] is the command
-    // Other arguments could be a path, executable 
+    // Other arguments could be a path or executable variables or ampersand
+
     // Built-in commands
     if (strcmp(argv[0], "cd") == 0) {
         //printf("in cd, path is: %s", argv[1]);
@@ -41,14 +49,46 @@ void eval(char **argv){
     else if (strcmp(argv[0], "jobs") == 0) {
         // do something
     }
+    /*
     else if (strcmp(argv[0], "fg") == 0) {
         // do something
     }
     else if (strcmp(argv[0], "bg") == 0) {
         // do something
     }
+    */
     else {      // not a built-in command. change to another stage
-        // do something
+        // assuming this is just a foreground function, conditions for background functions not added
+        struct job_Info jo[MAX_JOB];      // list of jobs. Should have a constructor for job list
+        
+        pid_t pid = fork();        // child's pid to the parent process
+        
+        //char* envvar = argv[0];
+        //int errcode;
+        if(pid == 0) {      // child process is successfully spawned
+            fflush(stdin);
+            fflush(stdout);
+
+            // first try execvp to execute ./hello 
+            printf("First argument: %s\n", argv[0]);
+            if (strstr("./", argv[0]) != NULL || strcmp("ls", argv[0]) == 0){
+                if(execvp(argv[0], argv) < 0){     // Negative value -> ERROR HERE
+                printf("%s: Command not found.\n",argv[0]);
+                exit(0);
+                }
+            }
+            else {
+                printf("Cannot execute command \n");
+            }
+        }
+        int status; //locations where waitpid stores status
+        if(waitpid(pid, &status, 0) < 0){
+           //errcode = errno;
+           printf("waitfg: waitpid error\n");
+           exit(EXIT_FAILURE);
+        }
+
+        
     }
 
 }
@@ -58,7 +98,7 @@ void distributeInput(char* input, int* argc, char** argv) {
     const char* delims = " \t\n";
     token = strtok(input, delims);      // first token is the command
     while (token != NULL) {             // getting next arguments in to argv
-        printf("tokens: %s\n", token);
+        //printf("tokens: %s\n", token);
         argv[(*argc)++] = token;
         token = strtok(NULL, delims);
     }
