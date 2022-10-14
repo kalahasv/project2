@@ -30,6 +30,25 @@ struct job_Info {
     //char cmd[MAX_LINE];
 };
 
+void addJob(struct job_Info *jobList, pid_t pid, enum job_Status status) {
+    for (int i = 0; i < MAX_JOB; i++) {
+        if (jobList[i].status == AVAILABLE) {
+            jobList[i].pid = pid;
+            jobList[i].status = status;
+            jobList[i].job_id++;
+            break;
+        }
+    }
+    return;
+}
+void constructJobs(struct job_Info *jobList) {   // Construct a default list of jobs
+    for (int i = 0; i < MAX_JOB; i++) {
+        jobList[i].pid = 0;
+        jobList[i].status = AVAILABLE;
+        jobList[i].job_id = 0;
+        //jobList[i].cmd[0] = '\0';
+    }
+}
 
 void eval(struct job_Info *jobList, char **argv, int argc){
 
@@ -133,40 +152,24 @@ pid_t currentFGJobPID(struct job_Info *jobList) {
     return 0;
 }
 
-void interruptHandler(int signalNum, ) {        // PAUSED !!!
+void interruptHandler(int signalNum ) {        // PAUSED !!!
     // use kill() to send signal to a certain job
     // need to know which is the current foreground job
-    // get the current foreground pid
-    pid_t pid = currentFGJobPID(&jobList);     // need to modify this to actually get the current fg job
-    printf("current pid need to be interrupted: %d", pid);
 
-    if (pid > 0) {
-        kill(-pid, SIGINT);
+    // get the current foreground pid
+    //pid_t pid = currentFGJobPID(&jobList);     // need to modify this to actually get the current fg job
+   // printf("current pid need to be interrupted: %d", signalNum);
+    printf("Interruption");
+
+    if (signalNum > 0) {
+        kill(-signalNum, SIGINT);
         printf("kill(SIGINT) error! \n");   // shouldnt be printed
         exit(1);
     } 
 }
 
-void contructJobs(struct job_Info *jobList) {   // Construct a default list of jobs
-    for (int i = 0; i < MAX_JOB; i++) {
-        jobList[i].pid = 0;
-        jobList[i].status = AVAILABLE;
-        jobList[i].job_id = 0;
-        //jobList[i].cmd[0] = '\0';
-    }
-}
 
-void addJob(struct job_Info *jobList, pid_t pid, enum job_Status status) {
-    for (int i = 0; i < MAX_JOB; i++) {
-        if (jobList[i].status = AVAILABLE) {
-            jobList[i].pid = pid;
-            jobList[i].status = status;
-            jobList[i].job_id++;
-            break;
-        }
-    }
-    return;
-}
+
 
 
 int main() {
@@ -178,6 +181,7 @@ int main() {
     struct job_Info jobList[MAX_JOB];      // list of jobs Should have a constructor for job list 
     constructJobs(&jobList);
     // Signals
+    pid_t pid = currentFGJobPID(&jobList); //get PID
     signal(SIGINT, interruptHandler);   // When user type in Ctrl+C, interrupt signal handler will be called
 
 
