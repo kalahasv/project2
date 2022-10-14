@@ -17,6 +17,7 @@
 #define MAX_JOB 5       //given in assignment details
 
 enum job_Status {
+    AVAILABLE,
     FOREGROUND,
     BACKGROUND,
     STOPPED
@@ -24,16 +25,21 @@ enum job_Status {
 
 struct job_Info {
     pid_t pid;
+    enum job_Status status;
     int job_id;
-    char cmd[MAX_LINE];
+    //char cmd[MAX_LINE];
 };
 
-void eval(char **argv){
 
+void eval(struct job_Info *jobList, char **argv, int argc){
 
-    char cwd[MAX_LINE];
+    for (int i = 0; i < argc; i++) {
+        printf("argv[%d] = %s\n", i, argv[i]);
+    }
+
+    char cwd[MAX_LINE];     // store current working directory path
     // First arugment in the argv[] is the command
-    // Other arguments could be a path or executable variables or ampersand
+    // Other arguments could be a path or executable programs or ampersand
 
     // Built-in commands
     if (strcmp(argv[0], "cd") == 0) {
@@ -58,28 +64,42 @@ void eval(char **argv){
     }
     */
     else {      // not a built-in command. change to another stage
-        // assuming this is just a foreground function, conditions for background functions not added
-        struct job_Info jo[MAX_JOB];      // list of jobs. Should have a constructor for job list
-        
+
+
         pid_t pid = fork();        // child's pid to the parent process
-        
+        printf("Parent pid is %d \n", pid);
         //char* envvar = argv[0];
         //int errcode;
-        if(pid == 0) {      // child process is successfully spawned
+        if (pid == 0) {      // child process is successfully spawned
+            //printf("child pid is %d \n", pid);
             fflush(stdin);
             fflush(stdout);
 
             // first try execvp to execute ./hello 
-            printf("First argument: %s\n", argv[0]);
-            if (strstr("./", argv[0]) != NULL || strcmp("ls", argv[0]) == 0){
-                if(execvp(argv[0], argv) < 0){     // Negative value -> ERROR HERE
-                printf("%s: Command not found.\n",argv[0]);
-                exit(0);
-                }
+            //printf("First argument: %s\n", argv[0]);
+            if (strstr("./", argv[0]) != NULL || strcmp("ls", argv[0]) == 0){       // does not seem to be working
+                printf("EXECVP Functionality not working at this time.");
             }
             else {
-                printf("Cannot execute command \n");
+                //printf("Cannot execute command \n");
+                if(execv(argv[0], argv) < 0){     // Negative value -> ERROR HERE
+                     printf("%s: Command not found.\n",argv[0]);
+                     exit(0);
+                }
             }
+
+            // since execv need to works with both /bin/ls and ls 
+            // ... 
+        }
+
+        else if (pid < 0) {
+            printf("Spwaning child process unsuccessful! \n");
+        }
+
+        else {      // parent process
+            // create new job and add the foreground job into the job list
+            addJob(&jobList, pid, FOREGROUND);
+
         }
         int status; //locations where waitpid stores status
         if(waitpid(pid, &status, 0) < 0){
@@ -98,10 +118,54 @@ void distributeInput(char* input, int* argc, char** argv) {
     const char* delims = " \t\n";
     token = strtok(input, delims);      // first token is the command
     while (token != NULL) {             // getting next arguments in to argv
-        //printf("tokens: %s\n", token);
+        // printf("here is some tokens: %s\n", token);
         argv[(*argc)++] = token;
         token = strtok(NULL, delims);
     }
+}
+
+pid_t currentFGJobPID(struct job_Info *jobList) {
+    for (int i = 0; i < MAX_JOB; i++) {
+        if (jobList[i].status == FOREGROUND) {
+            return jobList[i].pid;
+        }
+    }
+    return 0;
+}
+
+void interruptHandler(int signalNum, ) {        // PAUSED !!!
+    // use kill() to send signal to a certain job
+    // need to know which is the current foreground job
+    // get the current foreground pid
+    pid_t pid = currentFGJobPID(&jobList);     // need to modify this to actually get the current fg job
+    printf("current pid need to be interrupted: %d", pid);
+
+    if (pid > 0) {
+        kill(-pid, SIGINT);
+        printf("kill(SIGINT) error! \n");   // shouldnt be printed
+        exit(1);
+    } 
+}
+
+void contructJobs(struct job_Info *jobList) {   // Construct a default list of jobs
+    for (int i = 0; i < MAX_JOB; i++) {
+        jobList[i].pid = 0;
+        jobList[i].status = AVAILABLE;
+        jobList[i].job_id = 0;
+        //jobList[i].cmd[0] = '\0';
+    }
+}
+
+void addJob(struct job_Info *jobList, pid_t pid, enum job_Status status) {
+    for (int i = 0; i < MAX_JOB; i++) {
+        if (jobList[i].status = AVAILABLE) {
+            jobList[i].pid = pid;
+            jobList[i].status = status;
+            jobList[i].job_id++;
+            break;
+        }
+    }
+    return;
 }
 
 
@@ -111,7 +175,11 @@ int main() {
     int argc;               // Number of arguments from the input
     char* argv[MAX_LINE];  // List of arguments. First argument would be the command
       
- 
+    struct job_Info jobList[MAX_JOB];      // list of jobs Should have a constructor for job list 
+    constructJobs(&jobList);
+    // Signals
+    signal(SIGINT, interruptHandler);   // When user type in Ctrl+C, interrupt signal handler will be called
+
 
     while(1) //loop until quit is entered
     {
@@ -125,7 +193,7 @@ int main() {
         if(feof(stdin)){
             exit(0);
         }
-        eval(argv);     // evaluate the list of arguments
+        eval(&jobList, argv, argc);     // evaluate the list of arguments
         fflush(stdin);
 
         
