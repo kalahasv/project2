@@ -101,11 +101,11 @@ void eval(struct job_Info *jobList, char **argv, int argc){
         if (pid == 0) {      // child process is successfully spawned
             printf("child pid is %d \n", pid);
             
-            if(argc > 1){
-                if(strcmp(argv[1],"&") == 0){ //if it's  a background job
+            if("parent is listed as a background job"){ //need to get parent pid
+                 //if it's  a background job
                   printf("This is a background job.\n");
                   signal(SIGCHLD,sigchdHandler); 
-                }   
+                 
             }
             else{
                 printf("This is a foreground process.\n");
@@ -141,8 +141,15 @@ void eval(struct job_Info *jobList, char **argv, int argc){
 
         else {      // parent process
             // create new job and add the foreground job into the job list
-            addJob(jobList, pid,FOREGROUND);
-        }
+            if(argc > 1){
+                if(strcmp(argv[1],"&") == 0){
+                    addJob(jobList,pid,BACKGROUND); //bg job
+                }
+            }
+            else{
+                addJob(jobList, pid,FOREGROUND);
+            }
+        }   
 
         int status; //locations where waitpid stores status
         if(waitpid(pid, &status, 0) < 0){
