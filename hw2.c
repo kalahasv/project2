@@ -16,6 +16,9 @@
 #define MAX_ARGC 80     //given in assignment details
 #define MAX_JOB 5       //given in assignment details
 
+//we need to use a global variable for the signal handler since it can't have any parameters passed to it
+pid_t f_pid;
+
 enum job_Status {
     AVAILABLE,
     FOREGROUND,
@@ -158,12 +161,12 @@ void interruptHandler(int signalNum ) {        // PAUSED !!!
 
     // get the current foreground pid
     //pid_t pid = currentFGJobPID(&jobList);     // need to modify this to actually get the current fg job
-   // printf("current pid need to be interrupted: %d", signalNum);
-    printf("Interruption");
+   // printf("Interruption\n");
+    //printf("current pid that needs to be interrupted: %d\n", f_pid);//printf("current pid need to be interrupted: %d", signalNum);
 
-    if (signalNum > 0) {
-        kill(-signalNum, SIGINT);
-        printf("kill(SIGINT) error! \n");   // shouldnt be printed
+    if (f_pid > 0) {
+        kill(-f_pid, SIGINT);
+        printf("kill(%d) error! \n",SIGINT);   // shouldnt be printed
         exit(1);
     } 
 }
@@ -181,7 +184,7 @@ int main() {
     struct job_Info jobList[MAX_JOB];      // list of jobs Should have a constructor for job list 
     constructJobs(jobList);
     // Signals
-    pid_t pid = currentFGJobPID(jobList); //get PID
+    f_pid = currentFGJobPID(jobList); //get PID
     signal(SIGINT, interruptHandler);   // When user type in Ctrl+C, interrupt signal handler will be called
 
 
@@ -198,6 +201,7 @@ int main() {
             exit(0);
         }
         eval(jobList, argv, argc);     // evaluate the list of arguments
+        f_pid = currentFGJobPID(jobList); //get current FG PID every time 
         fflush(stdin);
 
         
