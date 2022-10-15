@@ -117,7 +117,7 @@ void eval(struct job_Info *jobList, char **argv, int argc){
 
         else {      // parent process
             // create new job and add the foreground job into the job list
-            addJob(&jobList, pid, FOREGROUND);
+            addJob(jobList, pid, FOREGROUND);
 
         }
         int status; //locations where waitpid stores status
@@ -179,9 +179,9 @@ int main() {
     char* argv[MAX_LINE];  // List of arguments. First argument would be the command
       
     struct job_Info jobList[MAX_JOB];      // list of jobs Should have a constructor for job list 
-    constructJobs(&jobList);
+    constructJobs(jobList);
     // Signals
-    pid_t pid = currentFGJobPID(&jobList); //get PID
+    pid_t pid = currentFGJobPID(jobList); //get PID
     signal(SIGINT, interruptHandler);   // When user type in Ctrl+C, interrupt signal handler will be called
 
 
@@ -197,7 +197,7 @@ int main() {
         if(feof(stdin)){
             exit(0);
         }
-        eval(&jobList, argv, argc);     // evaluate the list of arguments
+        eval(jobList, argv, argc);     // evaluate the list of arguments
         fflush(stdin);
 
         
