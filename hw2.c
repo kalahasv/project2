@@ -87,13 +87,17 @@ void eval(struct job_Info *jobList, char **argv, int argc){
     */
     else {      // not a built-in command. change to another stage
 
-
-        pid_t pid = fork();        // child's pid to the parent process
+        int reap_status;
+        pid_t pid = fork();        // child's pid to the parent process      
+        
+        
         printf("Parent pid is %d \n", pid);
         //char* envvar = argv[0];
         //int errcode;
         if (pid == 0) {      // child process is successfully spawned
-            //printf("child pid is %d \n", pid);
+            printf("child pid is %d \n", pid);
+            waitpid(pid,&reap_status,0); //calling wait after a child process is formed
+            printf("Reap status: %d\n",reap_status);
             fflush(stdin);
             fflush(stdout);
 
@@ -115,7 +119,7 @@ void eval(struct job_Info *jobList, char **argv, int argc){
         }
 
         else if (pid < 0) {
-            printf("Spwaning child process unsuccessful! \n");
+            printf("Spawning child process unsuccessful! \n");
         }
 
         else {      // parent process
@@ -123,6 +127,7 @@ void eval(struct job_Info *jobList, char **argv, int argc){
             addJob(jobList, pid, FOREGROUND);
 
         }
+
         int status; //locations where waitpid stores status
         if(waitpid(pid, &status, 0) < 0){
            //errcode = errno;
@@ -158,17 +163,14 @@ pid_t currentFGJobPID(struct job_Info *jobList) {
 void interruptHandler(int signalNum ) {        // PAUSED !!!
     // use kill() to send signal to a certain job
     // need to know which is the current foreground job
-
-    // get the current foreground pid
-    //pid_t pid = currentFGJobPID(&jobList);     // need to modify this to actually get the current fg job
-   // printf("Interruption\n");
-    //printf("current pid that needs to be interrupted: %d\n", f_pid);//printf("current pid need to be interrupted: %d", signalNum);
+    //printf("current pid that needs to be interrupted: %d\n", f_pid);
 
     if (f_pid > 0) {
         kill(-f_pid, SIGINT);
         printf("kill(%d) error! \n",SIGINT);   // shouldnt be printed
         exit(1);
     } 
+
 }
 
 
