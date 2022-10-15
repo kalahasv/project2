@@ -18,6 +18,7 @@
 
 //we need to use a global variable for the signal handler since it can't have any parameters passed to it
 pid_t f_pid;
+int f_indx;
 
 enum job_Status {
     AVAILABLE,
@@ -53,6 +54,11 @@ void constructJobs(struct job_Info *jobList) {   // Construct a default list of 
     }
 }
 
+void sigchdHandler( int signalNum){
+    int stat;
+    waitpid( -1, &stat, 0);
+}
+
 void eval(struct job_Info *jobList, char **argv, int argc){
 
     for (int i = 0; i < argc; i++) {
@@ -74,18 +80,16 @@ void eval(struct job_Info *jobList, char **argv, int argc){
     else if (strcmp(argv[0], "quit") == 0) {
         exit(0);
     }
-    else if (strcmp(argv[0], "jobs") == 0) {
+    else if (strcmp(argv[0], "jobs") == 0) {  // not a built-in command. change to another stage
         // do something
     }
-    /*
-    else if (strcmp(argv[0], "fg") == 0) {
-        // do something
-    }
-    else if (strcmp(argv[0], "bg") == 0) {
-        // do something
-    }
-    */
-    else {      // not a built-in command. change to another stage
+   // else if (strcmp(argv[1], "&") == 0) {
+    //    printf("Should run this as a background process\n");
+        //can run multiple background processes at once 
+        //can still add it to the jobList though for the sake for keeping track
+
+   // }
+    else {     //run as a foreground process
 
         int reap_status;
         pid_t pid = fork();        // child's pid to the parent process      
@@ -96,19 +100,32 @@ void eval(struct job_Info *jobList, char **argv, int argc){
         //int errcode;
         if (pid == 0) {      // child process is successfully spawned
             printf("child pid is %d \n", pid);
-            waitpid(pid,&reap_status,0); //calling wait after a child process is formed
-            printf("Reap status: %d\n",reap_status);
+            
+            if(argc > 1){
+                if(strcmp(argv[1],"&") == 0){ //if it's  a background job
+                  printf("This is a background job.\n");
+                  signal(SIGCHLD,sigchdHandler); 
+                }   
+            }
+            else{
+                printf("This is a foreground process.\n");
+                waitpid(pid,&reap_status,0); //calling wait after a child process is formed -> only if this is a foreground job
+                printf("Reap status: %d\n",reap_status);
+               
+            }
+            printf("Finished conditionals.\n");
+            
             fflush(stdin);
             fflush(stdout);
-
             // first try execvp to execute ./hello 
-            //printf("First argument: %s\n", argv[0]);
+            printf("First argument: %s\n", argv[0]);
             if (strstr("./", argv[0]) != NULL || strcmp("ls", argv[0]) == 0){       // does not seem to be working
                 printf("EXECVP Functionality not working at this time.");
             }
             else {
                 //printf("Cannot execute command \n");
                 if(execv(argv[0], argv) < 0){     // Negative value -> ERROR HERE
+
                      printf("%s: Command not found.\n",argv[0]);
                      exit(0);
                 }
@@ -124,8 +141,7 @@ void eval(struct job_Info *jobList, char **argv, int argc){
 
         else {      // parent process
             // create new job and add the foreground job into the job list
-            addJob(jobList, pid, FOREGROUND);
-
+            addJob(jobList, pid,FOREGROUND);
         }
 
         int status; //locations where waitpid stores status
@@ -160,6 +176,15 @@ pid_t currentFGJobPID(struct job_Info *jobList) {
     return 0;
 }
 
+int getCurrentFGJobIndex(struct job_Info *jobList) {
+    for (int i = 0; i < MAX_JOB; i++) {
+        if (jobList[i].status == FOREGROUND) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 void interruptHandler(int signalNum ) {        // PAUSED !!!
     // use kill() to send signal to a certain job
     // need to know which is the current foreground job
@@ -176,7 +201,6 @@ void interruptHandler(int signalNum ) {        // PAUSED !!!
 
 
 
-
 int main() {
      
     char input[MAX_LINE];  // Input from user. Each argument is seperated by a space or tab character 
@@ -187,9 +211,9 @@ int main() {
     constructJobs(jobList);
     // Signals
     f_pid = currentFGJobPID(jobList); //get PID
+   // f_indx = getCurrentFGJobIndex(jobList); //gets index in jobList of the current FGJob
     signal(SIGINT, interruptHandler);   // When user type in Ctrl+C, interrupt signal handler will be called
-
-
+    
     while(1) //loop until quit is entered
     {
         fflush(stdin);
@@ -204,6 +228,7 @@ int main() {
         }
         eval(jobList, argv, argc);     // evaluate the list of arguments
         f_pid = currentFGJobPID(jobList); //get current FG PID every time 
+        //f_indx = getCurrentFGJobIndex(jobList); //get current index of FG Job every time
         fflush(stdin);
 
         
