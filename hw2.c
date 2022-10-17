@@ -25,13 +25,20 @@ enum job_Status {
     FOREGROUND,
     BACKGROUND,
     STOPPED
-};
+} jobList2[MAX_JOB];     // global struct variable in order to assists signal handler functions
 
 struct job_Info {
     pid_t pid;
     enum job_Status status;
     int job_id;
     //char cmd[MAX_LINE];
+};
+
+typedef enum working_Space {
+    WP_BACKGROUND,
+    WP_REDIRECT_INPUT,
+    WP_REDIRECT_OUTPUT
+    JOB_ID
 };
 
 void addJob(struct job_Info *jobList, pid_t pid, enum job_Status status) {
@@ -83,12 +90,13 @@ void eval(struct job_Info *jobList, char **argv, int argc){
     else if (strcmp(argv[0], "jobs") == 0) {  // not a built-in command. change to another stage
         // do something
     }
-   // else if (strcmp(argv[1], "&") == 0) {
+    // else if (strcmp(argv[1], "&") == 0) {
     //    printf("Should run this as a background process\n");
         //can run multiple background processes at once 
         //can still add it to the jobList though for the sake for keeping track
 
-   // }
+    // }
+
     else {     //run as a foreground process
 
         int reap_status;
@@ -142,12 +150,12 @@ void eval(struct job_Info *jobList, char **argv, int argc){
         else {      // parent process
             // create new job and add the foreground job into the job list
             if(argc > 1){
-                if(strcmp(argv[1],"&") == 0){
-                    addJob(jobList,pid,BACKGROUND); //bg job
+                if(strcmp(argv[1], "&") == 0){
+                    addJob(jobList, pid, BACKGROUND);   //bg job
                 }
             }
             else{
-                addJob(jobList, pid,FOREGROUND);
+                addJob(jobList, pid, FOREGROUND);
             }
         }   
 
@@ -192,7 +200,7 @@ int getCurrentFGJobIndex(struct job_Info *jobList) {
     return -1;
 }
 
-void interruptHandler(int signalNum ) {        // PAUSED !!!
+void interruptHandler(int signalNum) {        // PAUSED !!!
     // use kill() to send signal to a certain job
     // need to know which is the current foreground job
     //printf("current pid that needs to be interrupted: %d\n", f_pid);
@@ -205,7 +213,25 @@ void interruptHandler(int signalNum ) {        // PAUSED !!!
 
 }
 
+working_Space checkInput(int* argc, int **argv) {
+    working_Space space;
+    for (int i = 0; i < argc, i++) {
+        if (strstr(argv[i], "&") != NULL) {     // Background space
+            space = WP_BACKGROUND;
+        }  
+        //else if () {    // redirect input
+            // do something
+        //}
+        //else if () {      // reidrect output
+            //
+        //}
+        //else if () {      // use to displace stuff by job ID
 
+        //}
+        
+    }
+    return space;
+}
 
 
 int main() {
@@ -229,11 +255,13 @@ int main() {
         
         fgets(input, MAX_LINE, stdin);          // Get user input
         distributeInput(input, &argc, argv);    // Distribute arguments from user input
+        // check input to see if in bg, or on shell or to redicted files
+        working_Space space = checkInput(&argc, argv);
 
         if(feof(stdin)){
             exit(0);
         }
-        eval(jobList, argv, argc);     // evaluate the list of arguments
+        eval(jobList, argv, argc, working_Space space);     // evaluate the list of arguments
         f_pid = currentFGJobPID(jobList); //get current FG PID every time 
         //f_indx = getCurrentFGJobIndex(jobList); //get current index of FG Job every time
         fflush(stdin);
