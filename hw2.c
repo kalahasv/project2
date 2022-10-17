@@ -83,7 +83,7 @@ void interruptHandler(int signalNum) {
     if (f_pid > 0) {
         kill(f_pid, SIGINT);
         //printf("kill(%d) error! \n",SIGINT);   // shouldnt be printed
-        exit(1);
+       // exit(1);
     } 
 }
 
@@ -139,7 +139,7 @@ void eval(struct job_Info *jobList, char **argv, int argc, working_Space space){
             }
             else{
                 int reap_status;
-                 //calling waitpid after a child process is formed //call pause instead 
+                pause();//calling waitpid after a child process is formed //call pause instead 
                 addJob(jobList, pid, FOREGROUND);
             }
         }           

@@ -2,12 +2,11 @@
 #include <unistd.h>
 int main() {
 unsigned int i = 0;
-for(i = 0; i < 20; i++)
+while(1)
 {
-    if( i == 10)  {
-        printf("I'm still running <3");
-    }
-    sleep(5);
+printf("Counter background: %d\n", i);
+i++;
+sleep(1);
 }
 return 0;
 }
