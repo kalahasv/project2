@@ -21,8 +21,8 @@ int g_job_id = 1;
 
 enum job_Status {
     AVAILABLE,
-    FOREGROUND,
-    BACKGROUND,
+    FOREGROUND, //foreground_running
+    BACKGROUND, //background_running
     STOPPED
 };     
 
@@ -80,6 +80,25 @@ void printBgJobs(){
     }
 }
 
+int getIndxByID(int id){
+    for(int i = 0; i < MAX_JOB; i ++){
+        if(jobList[i].job_id == id){
+            return i;
+        }
+    }
+}
+
+int getIndxByPID(pid_t pid){
+     for(int i = 0; i < MAX_JOB; i ++){
+        if(jobList[i].pid == pid){
+            return i;
+        }
+    }
+}
+
+void changeToForeground(int indx){
+
+}
 void eval(char **argv, int argc, working_Space space,char* cmdLine){
 
     char cwd[MAX_LINE];     // store current working directory path
@@ -96,6 +115,15 @@ void eval(char **argv, int argc, working_Space space,char* cmdLine){
     }
     else if (strcmp(argv[0], "jobs") == 0) {  // not a built-in command. change to another stage
         printBgJobs();
+    }
+    else if (strcmp(argv[0], "fg")== 0){ //change job that is in either stopped state or background to fg
+        
+        if(argv[1][0] == '%'){ //find by job id
+            changeToForeground(getIndxByID);
+        }
+        else{ //find by pid 
+            changeToForeground(getIndxByPID);
+        }
     }
     else {     //run as a general command
         
