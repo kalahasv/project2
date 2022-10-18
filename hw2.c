@@ -163,7 +163,26 @@ void killJob(int argc, char** argv) {
     deleteJob(pid);
 
 }
-void eval(char **argv, int argc, working_Space space,char* cmdLine){
+
+void printAllCurrentJobs() {
+    for (int i = 0; i < MAX_JOB; i++) {
+        printf("[%d] (%d) ", jobList[i].job_id, jobList[i].pid);
+        switch(jobList[i].status) {
+            case FOREGROUND:
+            printf("Foreground ");
+            break;
+            case BACKGROUND:
+            printf("Background ");
+            break;
+            case STOPPED:
+            printf("Stopped ");
+            break;
+        }
+        puts(jobList[i].cmd);
+    }
+}
+
+void eval(char **argv, int argc, working_Space space, char* cmdLine, char* inputFile, char* outputFile){
 
     char cwd[MAX_LINE];     // store current working directory path
 
@@ -181,6 +200,13 @@ void eval(char **argv, int argc, working_Space space,char* cmdLine){
         //printf("Calling jobs function");
         printBgJobs();
     }
+    // added for testing
+    else if(strcmp(argv[0], "list") == 0) {
+        printAllCurrentJobs();
+    }
+
+    // fg bg and kill will be merged into one else if condition
+
     else if (strcmp(argv[0], "fg") == 0 || strcmp(argv[0], "bg") == 0){  // switch job's working spaces: fg -> bg or bg -> fg 
                                                                     // these jobs are already stopped before switching
         switchWorkingSpace(argc, argv, space);     // just need to put in either jobID or pid and then switchWorkingSpace() will handle it 
@@ -189,17 +215,16 @@ void eval(char **argv, int argc, working_Space space,char* cmdLine){
     else if(strcmp(argv[0],"kill") == 0){
         killJob(argc,argv);
     }
-    // not a built-in command. change to another stage
-    else {     //run as a general command
+    // not a built-in command. Change to another stage
+    else {     // run as an executable command
         
-        //int reap_status;
-        pid_t pid;        // child's pid to the parent process      
+        pid_t pid;        
         //printf("Parent pid is %d \n", pid);
         argv[argc] = NULL;
-        if ((pid = fork()) == 0) {      // child process is successfully spawned
+        if ((pid = fork()) == 0) {      // child process is successfully spawned. child's pid to the parent process  
             //printf("child pid is %d \n", pid);
-            if(execv(argv[0], argv) < 0){     // Negative value means it didn't work - try execv first
-               if(execvp(argv[0],argv) < 0){ //try with execvp
+            if(execv(argv[0], argv) < 0){       // Negative value means it didn't work - try execv first
+               if(execvp(argv[0],argv) < 0){    // Otherwise, try with execvp
                         printf("%s: Command not found.\n",argv[0]);
                         exit(0);
             }
@@ -251,11 +276,13 @@ pid_t currentFGJobPID() {
 
 
 void interruptHandler(int signalNum) {        
-    //printf("current pid that needs to be interrupted: %d\n", f_pid);
+
     pid_t pid = currentFGJobPID();
+    printf("current pid that needs to be interrupted: %d\n", pid);
 
     if (pid > 0) {
         kill(-pid, SIGINT);
+        deleteJob(pid);
     } 
 
 }
@@ -263,8 +290,10 @@ void interruptHandler(int signalNum) {
 void stopHandler(int signalNum) {
 
     pid_t pid = currentFGJobPID();
+    printf("current pid that needs to be stopped: %d\n", pid);
     if (pid > 0) {
         kill(pid, SIGTSTP);
+        changeJobStatus(pid, STOPPED);
     } 
 }
 
@@ -279,7 +308,7 @@ void sigchdHandler(int signalNum) {
         }
         else if (WIFSTOPPED(status)) {  // child process has been stopped by delivery of a signal 
             stopHandler(SIGTSTP);
-            changeJobStatus(pid, STOPPED);
+            //changeJobStatus(pid, STOPPED);
         }
         else if (WIFEXITED(status)) {   // child process has been terminated normally
             // for terminated jobs, need to manually delete them
@@ -310,6 +339,21 @@ working_Space checkInput(int* argc, char **argv) {
     return space;
 }
 
+void fileScanner(int argc, char** argv, char* inputFile, char* outputFile) {
+    for (int i = argc - 1; i >= 0; i++) {   // loop backward to get file
+        if (strcmp(argv[i], "<") == 0) {
+            if (i + 1 < argc) {     // ... < inFile. < is at argv[i]. inFile will be at argv[i + 1].
+                strcpy(inputFile, argv[i + 1]);
+            }
+        }
+        else if (strcmp(argv[i], ">") == 0) {
+            if (i + 1 < argc) {
+                strcpy(outputFile, argv[i + 1]);
+            }
+        }
+    }
+}
+
 
 int main() {
      
@@ -317,6 +361,8 @@ int main() {
     char cmdLine[MAX_LINE]; //copy of input since input gets changed to strtok
     int argc;               // Number of arguments from the input
     char* argv[MAX_LINE];   // List of arguments. First argument would be the command
+    char inputFile[MAX_LINE];   // input file for reading from a file
+    char outputFile[MAX_LINE];  // output file for writing to a file
     
     constructJobs();        // fill the job list with empty jobs 
     
@@ -336,10 +382,13 @@ int main() {
 
         // check input to see if in bg, or on shell or to redicted files
         working_Space space = checkInput(&argc, argv);
+        // after checking the working space, we can decide to whether scan file names or not
+        //fileScanner(argc, argv, inputFile, outputFile);
+
         if(feof(stdin)){
             exit(0);
         }
-        eval(argv, argc, space,cmdLine);     // evaluate the list of arguments
+        eval(argv, argc, space, cmdLine, inputFile, outputFile);     // evaluate the list of arguments
         fflush(stdin);
 
         
