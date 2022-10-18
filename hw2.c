@@ -69,8 +69,23 @@ void pauseCurrentFGJob(pid_t pid) { //pauses the current foreground job
     }
 }
 
+void sortJobList(){ //sorts job list by job id
+    int i,j;
+    struct job_Info a;
+
+    for (i = 0; i < MAX_JOB; ++i){
+      for (j = i + 1; j < MAX_JOB; ++j){
+         if (jobList[i].job_id > jobList[j].job_id){
+            a = jobList[i];
+            jobList[i] = jobList[j];
+            jobList[j] = a;
+         }
+      }
+    }
+}
 void printBgJobs(){  //make a global array that is a copy of job
     static const char *STATUS_STRING[] = {"Running", "Stopped"};
+    sortJobList();
     for(int i = 0; i < MAX_JOB; i++){
         
         if(jobList[i].status == BACKGROUND || jobList[i].status == STOPPED){
@@ -412,7 +427,7 @@ int main() {
  * for (int i = 0l i < jobList.length; i++)){
  *  if () {
  * number_of_jobs_printed += 1;
- * if (number_of_jobs_printed == MAX) 
+ * if (number_of_jobs_printed == MAX_JOB)
  * }
  * }
  * 
