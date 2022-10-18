@@ -15,9 +15,9 @@
 #define MAX_JOB 5       //given in assignment details
 
 //global variable f_pid for use in interrupt handler
-pid_t f_pid;
-int f_indx;
-int g_job_id = 1;
+pid_t f_pid;    // not need
+int f_indx;     // not need
+int g_job_id = 1;   // global assigned job_id 
 
 enum job_Status {
     AVAILABLE,
@@ -38,7 +38,7 @@ typedef enum working_Space {
     WP_BACKGROUND,
     WP_REDIRECT_INPUT,
     WP_REDIRECT_OUTPUT,
-    JOB_ID
+    WP_OVERWRITTEN_OUTPUT
 } working_Space;
 
 void addJob(pid_t pid, enum job_Status status,char* cmdLine) {
@@ -70,33 +70,97 @@ void pauseCurrentFGJob(pid_t pid) { //pauses the current foreground job
 }
 
 void printBgJobs(){
-
-    static const char *STATUS_STRING[] = {
-     "Running", "Stopped"};
+    static const char *STATUS_STRING[] = {"Running", "Stopped"};
     for(int i = 0; i < MAX_JOB; i++){
+        
         if(jobList[i].status == BACKGROUND || jobList[i].status == STOPPED){
-            printf("[%d] (%d) %s %s",jobList[i].job_id,jobList[i].pid,STATUS_STRING[jobList[i].status-2],jobList[i].cmd);
+            //printf("Job status: %u",jobList[i].status);
+            if(jobList[i].pid != 0){
+             printf("[%d] (%d) %s %s", jobList[i].job_id, jobList[i].pid, STATUS_STRING[jobList[i].status-2], jobList[i].cmd);
+            }
+            else{
+                printf("The job is added with the wrong pid.\n");
+            }
         }
     }
 }
 
-int getIndxByID(int id){
+void deleteJob(pid_t pid) {
+    for (int i = 0; i < MAX_JOB; i++) {
+        if (jobList[i].pid == pid) {
+            jobList[i].pid = 0;
+            jobList[i].job_id = 0;
+            jobList[i].status = AVAILABLE;
+        }
+    }
+}
+
+
+pid_t getPIDByJID(int jid){
+    pid_t pid = -1;
     for(int i = 0; i < MAX_JOB; i ++){
-        if(jobList[i].job_id == id){
-            return i;
+        if(jobList[i].job_id == jid){
+            return jobList[i].pid;
+        }
+    }
+    return pid;
+}
+void changeJobStatus(pid_t pid, enum job_Status newStatus) {
+
+    for (int i = 0; i < MAX_JOB; i++) {
+        if (jobList[i].pid == pid) {
+            jobList[i].status = newStatus;
         }
     }
 }
 
-int getIndxByPID(pid_t pid){
-     for(int i = 0; i < MAX_JOB; i ++){
-        if(jobList[i].pid == pid){
-            return i;
-        }
+void switchWorkingSpace(int argc, char** argv, enum working_Space space){ 
+    pid_t pid;
+    // if argument has job_id, find pid of this process from the job id
+    if(argv[1][0] == '%'){ 
+        memmove(argv[1], argv[1]+1, strlen(argv[1]));  // remove % sign 
+        int jid = atoi(argv[1]);
+        pid = getPIDByJID(jid);         
+    }
+    else{
+        pid = atoi(argv[1]);        // get pid in case argument is pid
+    }
+    //seperate method but idk if that's redundant 
+    //and we should just check here bc we get the pid here anyways
+
+    // need to put the job back into running status
+    if (kill(pid, SIGCONT) < 0) {           // fail to continue a job
+        printf("Job with pid %d fails to continue\n", pid);
+        return;
+    }
+
+    if (strcmp(argv[0], "fg") == 0) {
+        changeJobStatus(pid, FOREGROUND);
+        pause();        // pause for running foreground job
+    }
+    else{
+        changeJobStatus(pid,BACKGROUND);
     }
 }
+   
 
-void changeToForeground(int indx){
+
+void killJob(int argc, char** argv) {
+    pid_t pid;
+    // get pid directly or from job id
+    if(argv[1][0] == '%'){ 
+        memmove(argv[1], argv[1]+1, strlen(argv[1]));  // remove % sign 
+        int jid = atoi(argv[1]);
+        pid = getPIDByJID(jid);         
+    }
+    else{
+        pid = atoi(argv[1]);        // get pid in case argument is pid
+    }
+    // send kill SIGKILL signal to terminate job
+    kill(pid, SIGKILL);
+
+    // manually delete terminated job in jobList
+    deleteJob(pid);
 
 }
 void eval(char **argv, int argc, working_Space space,char* cmdLine){
@@ -113,21 +177,22 @@ void eval(char **argv, int argc, working_Space space,char* cmdLine){
     else if (strcmp(argv[0], "quit") == 0) {
         exit(0);
     }
-    else if (strcmp(argv[0], "jobs") == 0) {  // not a built-in command. change to another stage
+    else if (strcmp(argv[0], "jobs") == 0) { 
+        //printf("Calling jobs function");
         printBgJobs();
     }
-    else if (strcmp(argv[0], "fg")== 0){ //change job that is in either stopped state or background to fg
+    else if (strcmp(argv[0], "fg") == 0 || strcmp(argv[0], "bg") == 0){  // switch job's working spaces: fg -> bg or bg -> fg 
+                                                                    // these jobs are already stopped before switching
+        switchWorkingSpace(argc, argv, space);     // just need to put in either jobID or pid and then switchWorkingSpace() will handle it 
         
-        if(argv[1][0] == '%'){ //find by job id
-            changeToForeground(getIndxByID);
-        }
-        else{ //find by pid 
-            changeToForeground(getIndxByPID);
-        }
     }
+    else if(strcmp(argv[0],"kill") == 0){
+        killJob(argc,argv);
+    }
+    // not a built-in command. change to another stage
     else {     //run as a general command
         
-        int reap_status;
+        //int reap_status;
         pid_t pid;        // child's pid to the parent process      
         //printf("Parent pid is %d \n", pid);
         argv[argc] = NULL;
@@ -145,17 +210,17 @@ void eval(char **argv, int argc, working_Space space,char* cmdLine){
         }
         else {      // parent process
             printf("parent id: %d\n", pid);
-            if(space == WP_BACKGROUND){ //create new background job 
-                if(strcmp(argv[1], "&") == 0) {
+            if(space == WP_BACKGROUND){             // create new background job 
+                if(strcmp(argv[1], "&") == 0) {     // no need to check this again since we already have space
                     printf("New background job.\n");
                     addJob(pid, BACKGROUND,cmdLine);   
                 }
             }
             else{
-                printf("New foreground job.\n"); //create new foreground job
+                printf("New foreground job.\n"); // create new foreground job
                 addJob(pid, FOREGROUND,cmdLine);
             }
-            if (space == WP_FOREGROUND) { //pause if foreground otherwise said for sigchld
+            if (space == WP_FOREGROUND) { // pause if foreground otherwise said for sigchld
                 //pauseCurrentFGJob(pid);
                 pause(); 
             }
@@ -184,33 +249,6 @@ pid_t currentFGJobPID() {
     return pid;
 }
 
-int getCurrentFGJobIndex(struct job_Info *jobList) {
-    for (int i = 0; i < MAX_JOB; i++) {
-        if (jobList[i].status == FOREGROUND) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-void changeJobStatus(pid_t pid, enum job_Status newStatus) {
-
-    for (int i = 0; i < MAX_JOB; i++) {
-        if (jobList[i].pid == pid) {
-            jobList[i].status = newStatus;
-        }
-    }
-}
-
-void deleteJob(pid_t pid) {
-    for (int i = 0; i < MAX_JOB; i++) {
-        if (jobList[i].pid == pid) {
-            jobList[i].pid = 0;
-            jobList[i].pid = 0;
-            jobList[i].status = AVAILABLE;
-        }
-    }
-}
 
 void interruptHandler(int signalNum) {        
     //printf("current pid that needs to be interrupted: %d\n", f_pid);
@@ -223,6 +261,7 @@ void interruptHandler(int signalNum) {
 }
 
 void stopHandler(int signalNum) {
+
     pid_t pid = currentFGJobPID();
     if (pid > 0) {
         kill(pid, SIGTSTP);
@@ -257,15 +296,15 @@ working_Space checkInput(int* argc, char **argv) {
         if (strcmp(argv[i], "&") == 0) {     // Background space
             space = WP_BACKGROUND;
         }  
-        //else if () {    // redirect input
-            // do something
-        //}
-        //else if () {      // reidrect output
-            //
-        //}
-        //else if () {      // use to displace stuff by job ID
-
-        //}
+        else if (strcmp(argv[i], "<") == 0) {    // redirect input
+            space = WP_REDIRECT_INPUT;
+        }
+        else if (strcmp(argv[i], ">") == 0) {      // reidrect output
+            space = WP_REDIRECT_OUTPUT;
+        }
+        else if (strcmp(argv[i], ">>") == 0) {      // use to displace stuff by job ID
+            space = WP_OVERWRITTEN_OUTPUT;
+        }
         
     }
     return space;
@@ -274,11 +313,12 @@ working_Space checkInput(int* argc, char **argv) {
 
 int main() {
      
-    char input[MAX_LINE];  // Input from user. Each argument is seperated by a space or tab character 
+    char input[MAX_LINE];   // Input from user. Each argument is seperated by a space or tab character 
     char cmdLine[MAX_LINE]; //copy of input since input gets changed to strtok
     int argc;               // Number of arguments from the input
-    char* argv[MAX_LINE];  // List of arguments. First argument would be the command
-    constructJobs(); // fill the job list with empty jobs 
+    char* argv[MAX_LINE];   // List of arguments. First argument would be the command
+    
+    constructJobs();        // fill the job list with empty jobs 
     
     signal(SIGINT, interruptHandler);   // When user type in Ctrl+C, interrupt signal handler will be called
     signal(SIGTSTP, stopHandler);       //deals with stop signal 
@@ -289,12 +329,12 @@ int main() {
         fflush(stdin);
         argc = 0;   // reset number of arguments every time getting a new input
         printf("prompt >");
+
         fgets(input, MAX_LINE, stdin);          // Get user input
         strcpy(cmdLine,input); //make a copy & store in cmdLine
         distributeInput(input, &argc, argv);    // Distribute arguments from user input
-        // check input to see if in bg, or on shell or to redicted files
-       
 
+        // check input to see if in bg, or on shell or to redicted files
         working_Space space = checkInput(&argc, argv);
         if(feof(stdin)){
             exit(0);
