@@ -69,7 +69,7 @@ void pauseCurrentFGJob(pid_t pid) { //pauses the current foreground job
     }
 }
 
-void printBgJobs(){
+void printBgJobs(){  //make a global array that is a copy of job
     static const char *STATUS_STRING[] = {"Running", "Stopped"};
     for(int i = 0; i < MAX_JOB; i++){
         
@@ -176,6 +176,8 @@ void printAllCurrentJobs() {
             break;
             case STOPPED:
             printf("Stopped ");
+            break;
+            case AVAILABLE:
             break;
         }
         puts(jobList[i].cmd);
@@ -397,3 +399,21 @@ int main() {
     return(0);
 
 }
+
+
+/**
+ * int job_count = 0;
+ * Joblsit[10]
+ * 
+ * fork() count += 1
+ * sigchild count -= 1;
+ * 
+ * int number_of_jobs_printed
+ * for (int i = 0l i < jobList.length; i++)){
+ *  if () {
+ * number_of_jobs_printed += 1;
+ * if (number_of_jobs_printed == MAX) 
+ * }
+ * }
+ * 
+*/
