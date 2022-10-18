@@ -1,5 +1,3 @@
-//hello test
-//need to accept command line arguments 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -16,23 +14,24 @@
 #define MAX_ARGC 80     //given in assignment details
 #define MAX_JOB 5       //given in assignment details
 
-//we need to use a global variable for the signal handler since it can't have any parameters passed to it
+//global variable f_pid for use in interrupt handler
 pid_t f_pid;
 int f_indx;
+int g_job_id = 1;
 
 enum job_Status {
     AVAILABLE,
     FOREGROUND,
     BACKGROUND,
     STOPPED
-};     // global struct variable in order to assists signal handler functions
+};     
 
-struct job_Info {
+struct job_Info { 
     pid_t pid;
     enum job_Status status;
     int job_id;
-    //char cmd[MAX_LINE];
-} jobList[MAX_JOB];
+    char cmd[MAX_LINE];
+} jobList[MAX_JOB]; //global job list
 
 typedef enum working_Space {
     WP_FOREGROUND,
@@ -42,12 +41,14 @@ typedef enum working_Space {
     JOB_ID
 } working_Space;
 
-void addJob(pid_t pid, enum job_Status status) {
+void addJob(pid_t pid, enum job_Status status,char* cmdLine) {
     for (int i = 0; i < MAX_JOB; i++) {
         if (jobList[i].status == AVAILABLE) {
             jobList[i].pid = pid;
             jobList[i].status = status;
-            jobList[i].job_id++;
+            jobList[i].job_id = g_job_id;
+            strcpy(jobList[i].cmd,cmdLine);
+            g_job_id++;
             break;
         }
     }
@@ -55,32 +56,36 @@ void addJob(pid_t pid, enum job_Status status) {
 }
 
 void constructJobs() {   // Construct a default list of jobs
-
     for (int i = 0; i < MAX_JOB; i++) {
         jobList[i].pid = 0;
         jobList[i].status = AVAILABLE;
         jobList[i].job_id = 0;
-        //jobList[i].cmd[0] = '\0';
     }
 }
 
-void pauseCurrentFGJob(pid_t pid) {
+void pauseCurrentFGJob(pid_t pid) { //pauses the current foreground job
     while (pid) {
         sleep(0);
     }
 }
 
+void printBgJobs(){
 
-void eval(char **argv, int argc, working_Space space){
+    static const char *STATUS_STRING[] = {
+     "Running", "Stopped"};
+    for(int i = 0; i < MAX_JOB; i++){
+        if(jobList[i].status == BACKGROUND || jobList[i].status == STOPPED){
+            printf("[%d] (%d) %s %s",jobList[i].job_id,jobList[i].pid,STATUS_STRING[jobList[i].status-2],jobList[i].cmd);
+        }
+    }
+}
+
+void eval(char **argv, int argc, working_Space space,char* cmdLine){
 
     char cwd[MAX_LINE];     // store current working directory path
-    // First arugment in the argv[] is the command
-    // Other arguments could be a path or executable programs or ampersand
-
 
     // Built-in commands
     if (strcmp(argv[0], "cd") == 0) {
-        //printf("in cd, path is: %s", argv[1]);
         chdir(argv[1]);
     }
     else if (strcmp(argv[0], "pwd") == 0) {
@@ -90,60 +95,41 @@ void eval(char **argv, int argc, working_Space space){
         exit(0);
     }
     else if (strcmp(argv[0], "jobs") == 0) {  // not a built-in command. change to another stage
-        // do something
+        printBgJobs();
     }
-
-
-    else {     //run as a different process
+    else {     //run as a general command
         
         int reap_status;
         pid_t pid;        // child's pid to the parent process      
         //printf("Parent pid is %d \n", pid);
-        
+        argv[argc] = NULL;
         if ((pid = fork()) == 0) {      // child process is successfully spawned
-            printf("child pid is %d \n", pid);
-            
-
-            if(execv(argv[0], argv) < 0){     // Negative value -> ERROR HERE
+            //printf("child pid is %d \n", pid);
+            if(execv(argv[0], argv) < 0){     // Negative value means it didn't work - try execv first
+               if(execvp(argv[0],argv) < 0){ //try with execvp
                         printf("%s: Command not found.\n",argv[0]);
                         exit(0);
             }
-
-            exit(EXIT_SUCCESS);
-
-            
-            printf("Finished conditionals.\n");
-            // since execv need to works with both /bin/ls and ls 
-            // ... 
+            }
         }
-
         else if (pid < 0) {
             printf("Spawning child process unsuccessful! \n");
         }
-
         else {      // parent process
-            // create new job and add the foreground job into the job list
             printf("parent id: %d\n", pid);
-            if(space == WP_BACKGROUND){
+            if(space == WP_BACKGROUND){ //create new background job 
                 if(strcmp(argv[1], "&") == 0) {
                     printf("New background job.\n");
-                    addJob(pid, BACKGROUND);   //bg job
+                    addJob(pid, BACKGROUND,cmdLine);   
                 }
-               
             }
             else{
-                printf("New foreground job.\n");
-                addJob(pid, FOREGROUND);
-                //int status; //locations where waitpid stores status
-                //if(waitpid(pid, &status, 0) < 0){
-                //printf("waitfg: waitpid error\n");
-                //exit(EXIT_FAILURE);
-                //}
+                printf("New foreground job.\n"); //create new foreground job
+                addJob(pid, FOREGROUND,cmdLine);
             }
-
-            if (space == WP_FOREGROUND) {
+            if (space == WP_FOREGROUND) { //pause if foreground otherwise said for sigchld
                 //pauseCurrentFGJob(pid);
-                pause();
+                pause(); 
             }
         } 
     }
@@ -191,30 +177,25 @@ void changeJobStatus(pid_t pid, enum job_Status newStatus) {
 void deleteJob(pid_t pid) {
     for (int i = 0; i < MAX_JOB; i++) {
         if (jobList[i].pid == pid) {
-            jobList[i].pid = 0
-            jobList[i].jid = 0;
+            jobList[i].pid = 0;
+            jobList[i].pid = 0;
             jobList[i].status = AVAILABLE;
         }
     }
 }
 
-void interruptHandler(int signalNum) {        // PAUSED !!!
-    // use kill() to send signal to a certain job
-    // need to know which is the current foreground job
+void interruptHandler(int signalNum) {        
     //printf("current pid that needs to be interrupted: %d\n", f_pid);
-    pid_t pid = currentFGJobPID(jobList);
+    pid_t pid = currentFGJobPID();
 
     if (pid > 0) {
-        //printf("ctrl C on %d\n", pid);
         kill(-pid, SIGINT);
     } 
 
 }
 
 void stopHandler(int signalNum) {
-
-    pid_t pid = currentFGJobPID(jobList);
-
+    pid_t pid = currentFGJobPID();
     if (pid > 0) {
         kill(pid, SIGTSTP);
     } 
@@ -223,8 +204,7 @@ void stopHandler(int signalNum) {
 void sigchdHandler(int signalNum) {
     int status = 0;
     pid_t pid = 0;
-
-    while ((pid = waitpid(currentFGJobPID(jobList), &status, WNOHANG | WUNTRACED)) > 0) {
+    while ((pid = waitpid(currentFGJobPID(), &status, WNOHANG | WUNTRACED)) > 0) {
         printf("child pid in sigchd: %d\n", pid);
         if (WIFSIGNALED(status)) {      // child process has terminated by a signal 
             printf("interrupt is sent\n");
@@ -267,46 +247,36 @@ working_Space checkInput(int* argc, char **argv) {
 int main() {
      
     char input[MAX_LINE];  // Input from user. Each argument is seperated by a space or tab character 
+    char cmdLine[MAX_LINE]; //copy of input since input gets changed to strtok
     int argc;               // Number of arguments from the input
     char* argv[MAX_LINE];  // List of arguments. First argument would be the command
-      
-    //struct job_Info jobList[MAX_JOB];      // list of jobs Should have a constructor for job list 
-    constructJobs(jobList);
-    // Signals
-    //f_pid = currentFGJobPID(jobList); //get PID
+    constructJobs(); // fill the job list with empty jobs 
     
-   // f_indx = getCurrentFGJobIndex(jobList); //gets index in jobList of the current FGJob
     signal(SIGINT, interruptHandler);   // When user type in Ctrl+C, interrupt signal handler will be called
-    signal(SIGTSTP, stopHandler);
-    signal(SIGCHLD, sigchdHandler);     // for the bg process
+    signal(SIGTSTP, stopHandler);       //deals with stop signal 
+    signal(SIGCHLD, sigchdHandler);     // for the bg process, cleans up zombies
     
     while(1) //loop until quit is entered
     {
         fflush(stdin);
         argc = 0;   // reset number of arguments every time getting a new input
         printf("prompt >");
-        
         fgets(input, MAX_LINE, stdin);          // Get user input
+        strcpy(cmdLine,input); //make a copy & store in cmdLine
         distributeInput(input, &argc, argv);    // Distribute arguments from user input
-
         // check input to see if in bg, or on shell or to redicted files
+       
+
         working_Space space = checkInput(&argc, argv);
-
-
         if(feof(stdin)){
             exit(0);
         }
-        
-        eval(argv, argc, space);     // evaluate the list of arguments
-        //f_pid = currentFGJobPID(jobList); //get current FG PID every time 
-        //f_indx = getCurrentFGJobIndex(jobList); //get current index of FG Job every time
+        eval(argv, argc, space,cmdLine);     // evaluate the list of arguments
         fflush(stdin);
 
         
     }
-   
 
-    
     return(0);
 
 }
