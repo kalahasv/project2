@@ -73,13 +73,9 @@ void pauseCurrentFGJob(pid_t pid) {
 
 void eval(char **argv, int argc, working_Space space){
 
-    //for (int i = 0; i < argc; i++) {
-    //    printf("argv[%d] = %s\n", i, argv[i]);
-    // }
     char cwd[MAX_LINE];     // store current working directory path
     // First arugment in the argv[] is the command
     // Other arguments could be a path or executable programs or ampersand
-
 
 
     // Built-in commands
@@ -96,12 +92,7 @@ void eval(char **argv, int argc, working_Space space){
     else if (strcmp(argv[0], "jobs") == 0) {  // not a built-in command. change to another stage
         // do something
     }
-    // else if (strcmp(argv[1], "&") == 0) {
-    //    printf("Should run this as a background process\n");
-        //can run multiple background processes at once 
-        //can still add it to the jobList though for the sake for keeping track
 
-    // }
 
     else {     //run as a different process
         
@@ -112,38 +103,6 @@ void eval(char **argv, int argc, working_Space space){
         if ((pid = fork()) == 0) {      // child process is successfully spawned
             printf("child pid is %d \n", pid);
             
-            /*if(space == WP_BACKGROUND){
-                argv[1] = NULL;
-                if(execv(argv[0], argv) < 0){     // Negative value -> ERROR HERE
-                    //printf("Return value: %d\n",execv(argv[0],argv));
-                    printf("%s: Command not found.\n",argv[0]);
-                    exit(1);
-                }   
-                   
-            }
-            
-            else{
-                printf("This is a foreground process.\n");
-                //waitpid(pid,&reap_status,0); //calling wait after a child process is formed -> only if this is a foreground job
-                //printf("Reap status: %d\n",reap_status);
-                fflush(stdin);
-                fflush(stdout);
-                // first try execvp to execute ./hello 
-                printf("First argument: %s\n", argv[0]);
-
-                if (strstr("./", argv[0]) != NULL || strcmp("ls", argv[0]) == 0){       // does not seem to be working
-                    printf("EXECVP Functionality not working at this time.");
-                    exit(0);
-                }
-                else {
-                    //printf("Cannot execute command \n");
-                    if(execv(argv[0], argv) < 0){     // Negative value -> ERROR HERE
-                        printf("%s: Command not found.\n",argv[0]);
-                        exit(0);
-                    }
-                }  
-               
-            }*/
 
             if(execv(argv[0], argv) < 0){     // Negative value -> ERROR HERE
                         printf("%s: Command not found.\n",argv[0]);
@@ -229,6 +188,16 @@ void changeJobStatus(pid_t pid, enum job_Status newStatus) {
     }
 }
 
+void deleteJob(pid_t pid) {
+    for (int i = 0; i < MAX_JOB; i++) {
+        if (jobList[i].pid == pid) {
+            jobList[i].pid = 0
+            jobList[i].jid = 0;
+            jobList[i].status = AVAILABLE;
+        }
+    }
+}
+
 void interruptHandler(int signalNum) {        // PAUSED !!!
     // use kill() to send signal to a certain job
     // need to know which is the current foreground job
@@ -238,7 +207,6 @@ void interruptHandler(int signalNum) {        // PAUSED !!!
     if (pid > 0) {
         //printf("ctrl C on %d\n", pid);
         kill(-pid, SIGINT);
-        //printf("kill(%d) error! \n",SIGINT);   // shouldnt be printed
     } 
 
 }
@@ -248,8 +216,7 @@ void stopHandler(int signalNum) {
     pid_t pid = currentFGJobPID(jobList);
 
     if (pid > 0) {
-        kill(-pid, SIGTSTP);
-        //printf("kill(%d) error! \n", SIGTSTP);   // shouldnt be printed
+        kill(pid, SIGTSTP);
     } 
 }
 
@@ -259,17 +226,17 @@ void sigchdHandler(int signalNum) {
 
     while ((pid = waitpid(currentFGJobPID(jobList), &status, WNOHANG | WUNTRACED)) > 0) {
         printf("child pid in sigchd: %d\n", pid);
-        if (WIFSIGNALED(status)) {
+        if (WIFSIGNALED(status)) {      // child process has terminated by a signal 
             printf("interrupt is sent\n");
-            interruptHandler(-SIGINT);
+            interruptHandler(SIGINT);
         }
-        else if (WIFSTOPPED(status)) {
+        else if (WIFSTOPPED(status)) {  // child process has been stopped by delivery of a signal 
             stopHandler(SIGTSTP);
             changeJobStatus(pid, STOPPED);
-            //exit(1);
         }
-        else if (WIFEXITED(status)) {
-            // delete job that has been terminated
+        else if (WIFEXITED(status)) {   // child process has been terminated normally
+            // for terminated jobs, need to manually delete them
+            deleteJob(pid);
         }
     }
 }
@@ -321,6 +288,7 @@ int main() {
         
         fgets(input, MAX_LINE, stdin);          // Get user input
         distributeInput(input, &argc, argv);    // Distribute arguments from user input
+
         // check input to see if in bg, or on shell or to redicted files
         working_Space space = checkInput(&argc, argv);
 
