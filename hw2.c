@@ -221,8 +221,14 @@ void eval(char **argv, int argc, working_Space space, char* cmdLine, char* input
         
         pid_t pid;        
         //printf("Parent pid is %d \n", pid);
+
         argv[argc] = NULL;
         if ((pid = fork()) == 0) {      // child process is successfully spawned. child's pid to the parent process  
+
+            int inFileID; 
+            int outFileID;
+
+
             //printf("child pid is %d \n", pid);
             if(execv(argv[0], argv) < 0){       // Negative value means it didn't work - try execv first
                if(execvp(argv[0],argv) < 0){    // Otherwise, try with execvp
@@ -259,7 +265,6 @@ void distributeInput(char* input, int* argc, char** argv) {
     const char* delims = " \t\n";
     token = strtok(input, delims);      // first token is the command
     while (token != NULL) {             // getting next arguments in to argv
-        // printf("here is some tokens: %s\n", token);
         argv[(*argc)++] = token;
         token = strtok(NULL, delims);
     }
@@ -276,7 +281,7 @@ pid_t currentFGJobPID() {
 }
 
 
-void interruptHandler(int signalNum) {        
+void interruptHandler(int signalNum) {        // only interrupts current FG job
 
     pid_t pid = currentFGJobPID();
     printf("current pid that needs to be interrupted: %d\n", pid);
@@ -288,7 +293,7 @@ void interruptHandler(int signalNum) {
 
 }
 
-void stopHandler(int signalNum) {
+void stopHandler(int signalNum) {               // only stops current FG job
 
     pid_t pid = currentFGJobPID();
     printf("current pid that needs to be stopped: %d\n", pid);
@@ -303,13 +308,11 @@ void sigchdHandler(int signalNum) {
     pid_t pid = 0;
     while ((pid = waitpid(currentFGJobPID(), &status, WNOHANG | WUNTRACED)) > 0) {
         printf("child pid in sigchd: %d\n", pid);
-        if (WIFSIGNALED(status)) {      // child process has terminated by a signal 
-            printf("interrupt is sent\n");
+        if (WIFSIGNALED(status)) {      // child process has terminated by a signal. Ctrl + C
             interruptHandler(SIGINT);
         }
-        else if (WIFSTOPPED(status)) {  // child process has been stopped by delivery of a signal 
+        else if (WIFSTOPPED(status)) {  // child process has been stopped by delivery of a signal. Ctrl + Z
             stopHandler(SIGTSTP);
-            //changeJobStatus(pid, STOPPED);
         }
         else if (WIFEXITED(status)) {   // child process has been terminated normally
             // for terminated jobs, need to manually delete them
@@ -340,8 +343,11 @@ working_Space checkInput(int* argc, char **argv) {
     return space;
 }
 
-void fileScanner(int argc, char** argv, char* inputFile, char* outputFile) {
+void fileScanner(int argc, char** argv, char* inputFile, char* outputFile) {        // NEED TO GET THIS SHIT TO WORK
+    printf("file scanner is about to work!\n");
+    printf("num argc %d\n", argc);
     for (int i = argc - 1; i >= 0; i++) {   // loop backward to get file
+        printf("i is %d", i);
         if (strcmp(argv[i], "<") == 0) {
             if (i + 1 < argc) {     // ... < inFile. < is at argv[i]. inFile will be at argv[i + 1].
                 strcpy(inputFile, argv[i + 1]);
@@ -383,8 +389,9 @@ int main() {
 
         // check input to see if in bg, or on shell or to redicted files
         working_Space space = checkInput(&argc, argv);
-        // after checking the working space, we can decide to whether scan file names or not
-        //fileScanner(argc, argv, inputFile, outputFile);
+        
+        fileScanner(argc, argv, inputFile, outputFile);
+        printf("done scanning file\n");
 
         if(feof(stdin)){
             exit(0);
