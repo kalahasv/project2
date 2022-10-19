@@ -1,2 +1,2 @@
-This is what is being inputted to add: 4
-6 
+This is what is being inputted to add: 40
+42 

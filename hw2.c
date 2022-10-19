@@ -74,8 +74,20 @@ void pauseCurrentFGJob(pid_t pid) { //pauses the current foreground job
     }
 }
 
-void printBgJobs(){
+void printBgJobs( working_Space space, char* outputFile){
     static const char *STATUS_STRING[] = {"Running", "Stopped"};
+    int outFile = -1;    // output file descriptor
+    mode_t mode = S_IRWXU | S_IRWXG | S_IRWXO;  // mode fore setting permission bits
+
+    if (space == WP_REDIRECT_OUTPUT) {      // redirect + overwrite standard output to a file
+                outFile = open(outputFile, O_CREAT|O_WRONLY|O_TRUNC, mode);
+                dup2(outFile, STDOUT_FILENO);
+    }
+
+    else if(space == WP_APPEND_OUTPUT){     // append standard output to a file 
+                outFile = open(outputFile, O_CREAT|O_APPEND|O_WRONLY,mode); 
+                dup2(outFile, STDOUT_FILENO);
+    }
     for(int i = 0; i < MAX_JOB; i++){
         
         if(jobList[i].status == BACKGROUND || jobList[i].status == STOPPED){
@@ -88,6 +100,8 @@ void printBgJobs(){
             }
         }
     }
+    close(outFile);
+    
 }
 
 void deleteJob(pid_t pid) {
@@ -100,7 +114,6 @@ void deleteJob(pid_t pid) {
         }
     }
 }
-
 
 pid_t getPIDByJID(int jid){
     pid_t pid = -1;
@@ -149,8 +162,6 @@ void switchWorkingSpace(int argc, char** argv, enum working_Space space){
     }
 }
    
-
-
 void killJob(int argc, char** argv) {
     pid_t pid;
     // get pid directly or from job id
@@ -200,13 +211,12 @@ void distributeInput(char* input, int* argc, char** argv) {
     }
 }
 
-
 void distributeFileInput(char* input, int* argc, char** argv){
     printf("Distribute file input\n");
     char program_name[MAX_LINE];
-    strcpy(program_name,argv[0]); //copy argv[0] into a string 
+    strcpy(program_name,argv[0]);   //copy argv[0] into a string 
     memset(*argv, 0, sizeof(argv)); //clear argv
-    argv[0] = program_name; //set first argv back to program name
+    argv[0] = program_name;         //set first argv back to program name
     printf("in dist argv[0]: %s\n",argv[0]);
     *argc = 1;
     distributeInput(input,argc,argv);
@@ -228,7 +238,10 @@ void eval(char **argv, int argc, working_Space space, char* cmdLine, char* input
     }
     else if (strcmp(argv[0], "jobs") == 0) { 
         //printf("Calling jobs function");
-        printBgJobs();
+        printBgJobs(space,outputFile);
+        if(space == WP_REDIRECT_OUTPUT || space ==WP_APPEND_OUTPUT){
+        
+        }
     }
     // added for testing
     else if(strcmp(argv[0], "list") == 0) {
@@ -291,6 +304,7 @@ void eval(char **argv, int argc, working_Space space, char* cmdLine, char* input
             }
             
             else if(space == WP_IN_OUT){
+                printf("in and out function");
                 inFile = open(inputFile, O_RDONLY, mode);   // open the inputFile
                 dup2(inFile, STDIN_FILENO); 
                 close(inFile);    
@@ -301,6 +315,7 @@ void eval(char **argv, int argc, working_Space space, char* cmdLine, char* input
 
                 outFile = open(outputFile, O_CREAT|O_WRONLY|O_TRUNC, mode);
                 dup2(outFile, STDOUT_FILENO);
+                
 
             }
             
@@ -314,6 +329,7 @@ void eval(char **argv, int argc, working_Space space, char* cmdLine, char* input
 
                 outFile = open(outputFile, O_CREAT|O_APPEND|O_WRONLY,mode); 
                 dup2(outFile, STDOUT_FILENO); 
+                
 
             }
 
