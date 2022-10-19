@@ -79,15 +79,6 @@ void printBgJobs( working_Space space, char* outputFile){
     int outFile = -1;    // output file descriptor
     mode_t mode = S_IRWXU | S_IRWXG | S_IRWXO;  // mode fore setting permission bits
 
-    if (space == WP_REDIRECT_OUTPUT) {      // redirect + overwrite standard output to a file
-                outFile = open(outputFile, O_CREAT|O_WRONLY|O_TRUNC, mode);
-                dup2(outFile, STDOUT_FILENO);
-    }
-
-    else if(space == WP_APPEND_OUTPUT){     // append standard output to a file 
-                outFile = open(outputFile, O_CREAT|O_APPEND|O_WRONLY,mode); 
-                dup2(outFile, STDOUT_FILENO);
-    }
     for(int i = 0; i < MAX_JOB; i++){
         
         if(jobList[i].status == BACKGROUND || jobList[i].status == STOPPED){
@@ -100,7 +91,6 @@ void printBgJobs( working_Space space, char* outputFile){
             }
         }
     }
-    close(outFile);
     
 }
 
