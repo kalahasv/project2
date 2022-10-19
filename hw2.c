@@ -69,23 +69,8 @@ void pauseCurrentFGJob(pid_t pid) { //pauses the current foreground job
     }
 }
 
-void sortJobList(){ //sorts job list by job id
-    int i,j;
-    struct job_Info a;
-
-    for (i = 0; i < MAX_JOB; ++i){
-      for (j = i + 1; j < MAX_JOB; ++j){
-         if (jobList[i].job_id > jobList[j].job_id){
-            a = jobList[i];
-            jobList[i] = jobList[j];
-            jobList[j] = a;
-         }
-      }
-    }
-}
-void printBgJobs(){  
+void printBgJobs(){
     static const char *STATUS_STRING[] = {"Running", "Stopped"};
-    sortJobList();
     for(int i = 0; i < MAX_JOB; i++){
         
         if(jobList[i].status == BACKGROUND || jobList[i].status == STOPPED){
@@ -106,6 +91,7 @@ void deleteJob(pid_t pid) {
             jobList[i].pid = 0;
             jobList[i].job_id = 0;
             jobList[i].status = AVAILABLE;
+            jobList[i].cmd[0] = '\0';
         }
     }
 }
@@ -191,8 +177,6 @@ void printAllCurrentJobs() {
             break;
             case STOPPED:
             printf("Stopped ");
-            break;
-            case AVAILABLE:
             break;
         }
         puts(jobList[i].cmd);
@@ -363,7 +347,7 @@ void fileScanner(int argc, char** argv, char* inputFile, char* outputFile) {
                 strcpy(inputFile, argv[i + 1]);
             }
         }
-        else if (strcmp(argv[i], ">") == 0) {
+        else if (strstr(argv[i], ">") != NULL) {    // for either > or >>. outputFile should be saved 
             if (i + 1 < argc) {
                 strcpy(outputFile, argv[i + 1]);
             }
@@ -414,21 +398,3 @@ int main() {
     return(0);
 
 }
-
-
-/**
- * int job_count = 0;
- * Joblsit[10]
- * 
- * fork() count += 1
- * sigchild count -= 1;
- * 
- * int number_of_jobs_printed
- * for (int i = 0l i < jobList.length; i++)){
- *  if () {
- * number_of_jobs_printed += 1;
- * if (number_of_jobs_printed == MAX_JOB)
- * }
- * }
- * 
-*/
