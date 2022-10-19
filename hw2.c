@@ -83,7 +83,7 @@ void sortJobList(){ //sorts job list by job id
       }
     }
 }
-void printBgJobs(){  //make a global array that is a copy of job
+void printBgJobs(){  
     static const char *STATUS_STRING[] = {"Running", "Stopped"};
     sortJobList();
     for(int i = 0; i < MAX_JOB; i++){
