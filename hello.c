@@ -2,13 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 int main() {
-   int val;
-   char str[20];
    
-   strcpy(str, "%98993489");
-   memmove(str, str+1, strlen(str));
-   val = atoi(str);
-   printf("String value = %s, Int value = %d\n", str, val); 
+   printf("Hello world!\n");
 
    return (0);
 }
