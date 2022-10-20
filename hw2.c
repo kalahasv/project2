@@ -277,9 +277,11 @@ void eval(char **argv, int argc, working_Space space, char* cmdLine, char* input
                 //printf("infileID %d", inFile);
                 dup2(inFile, STDIN_FILENO);         // dup the file descriptor to point to STDIN to the input file
                 close(inFile);    
+                /*
                 fgets(redir_input_str,MAX_LINE,stdin);
                 printf("New Input String: %s\n",redir_input_str);   
                 distributeFileInput(redir_input_str,&argc,argv);  
+                */
                 //printf("TEST ARGV CONTENT FOR NUMBER.TXT: %s, %s\n",argv[0],argv[1]);       
             }
 
@@ -299,23 +301,31 @@ void eval(char **argv, int argc, working_Space space, char* cmdLine, char* input
                 dup2(inFile, STDIN_FILENO); 
                 close(inFile);    
 
+                /*
                 fgets(redir_input_str,MAX_LINE,stdin);
-                printf("New Input String: %s\n",redir_input_str);   
+                printf("New Input String that is going to distrubted to argv: %s\n",redir_input_str);   
                 distributeFileInput(redir_input_str,&argc,argv); 
-
+                printf("ARGV CONTENT:");
+                for(int i = 0; i < argc;i++){
+                    printf("%s,",argv[i]);
+                }
+                printf("\n");
+                */
                 outFile = open(outputFile, O_CREAT|O_WRONLY|O_TRUNC, mode);
                 dup2(outFile, STDOUT_FILENO);
                 
 
             }
             
-            else if(space == WP_APPEND_OUTPUT){
+            else if(space == WP_IN_OUT_APPEND){
                 inFile = open(inputFile, O_RDONLY, mode);   // open the inputFile
                 dup2(inFile, STDIN_FILENO);         // dup the file descriptor to point to STDIN to the input file
                 close(inFile);
+                /*
                 fgets(redir_input_str,MAX_LINE,stdin);
                 printf("New Input String: %s\n",redir_input_str);   
                 distributeFileInput(redir_input_str,&argc,argv); 
+                */
 
                 outFile = open(outputFile, O_CREAT|O_APPEND|O_WRONLY,mode); 
                 dup2(outFile, STDOUT_FILENO); 
