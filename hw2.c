@@ -14,18 +14,14 @@
 #define MAX_ARGC 80     //given in assignment details
 #define MAX_JOB 5       //given in assignment details
 
-//global variable f_pid for use in interrupt handler
-pid_t f_pid;    // not need
-int f_indx;     // not need
-int g_job_id = 1;   // global assigned job_id 
-int needs_In_N_Out = 0; //global bool for if there is both input and output 
 
-typedef enum {true, false} bool;
+int g_job_id = 1;       // global assigned job_id 
+int needs_In_N_Out = 0; //global bool for if there is both input and output. 0 for False and 1 for True
 
 enum job_Status {
     AVAILABLE,
-    FOREGROUND, //foreground_running
-    BACKGROUND, //background_running
+    FOREGROUND, // foreground_running
+    BACKGROUND, // background_running
     STOPPED
 };     
 
@@ -34,7 +30,7 @@ struct job_Info {
     enum job_Status status;
     int job_id;
     char cmd[MAX_LINE];
-} jobList[MAX_JOB]; //global job list
+} jobList[MAX_JOB]; // global job list
 
 typedef enum working_Space {
     WP_FOREGROUND,
@@ -70,15 +66,11 @@ void constructJobs() {   // Construct a default list of jobs
 
 void printBgJobs( working_Space space, char* outputFile){
     static const char *STATUS_STRING[] = {"Running", "Stopped"};
-    int outFile = -1;    // output file descriptor
-    mode_t mode = S_IRWXU | S_IRWXG | S_IRWXO;  // mode fore setting permission bits
-
+    
     for(int i = 0; i < MAX_JOB; i++){
-        
         if(jobList[i].status == BACKGROUND || jobList[i].status == STOPPED){
-            //printf("Job status: %u",jobList[i].status);
             if(jobList[i].pid != 0){
-             printf("[%d] (%d) %s %s", jobList[i].job_id, jobList[i].pid, STATUS_STRING[jobList[i].status-2], jobList[i].cmd);
+                printf("[%d] (%d) %s %s", jobList[i].job_id, jobList[i].pid, STATUS_STRING[jobList[i].status-2], jobList[i].cmd);
             }
             else{
                 printf("The job is added with the wrong pid.\n");
@@ -109,7 +101,6 @@ pid_t getPIDByJID(int jid){
     return pid;
 }
 void changeJobStatus(pid_t pid, enum job_Status newStatus) {
-
     for (int i = 0; i < MAX_JOB; i++) {
         if (jobList[i].pid == pid) {
             jobList[i].status = newStatus;
@@ -117,23 +108,12 @@ void changeJobStatus(pid_t pid, enum job_Status newStatus) {
     }
 }
 
-void switchWorkingSpace(int argc, char** argv, enum working_Space space){ 
-    pid_t pid;
-    // if argument has job_id, find pid of this process from the job id
-    if(argv[1][0] == '%'){ 
-        memmove(argv[1], argv[1]+1, strlen(argv[1]));  // remove % sign 
-        int jid = atoi(argv[1]);
-        pid = getPIDByJID(jid);         
-    }
-    else{
-        pid = atoi(argv[1]);        // get pid in case argument is pid
-    }
+void switchWorkingSpace(int argc, char** argv, enum working_Space space, pid_t pid){ 
     // need to put the job back into running status
     if (kill(pid, SIGCONT) < 0) {           // fail to continue a job
         printf("Job with pid %d fails to continue\n", pid);
         return;
     }
-
     if (strcmp(argv[0], "fg") == 0) {
         changeJobStatus(pid, FOREGROUND);
         pause();        // pause for running foreground job
@@ -143,17 +123,8 @@ void switchWorkingSpace(int argc, char** argv, enum working_Space space){
     }
 }
    
-void killJob(int argc, char** argv) {
-    pid_t pid;
-    // get pid directly or from job id
-    if(argv[1][0] == '%'){ 
-        memmove(argv[1], argv[1]+1, strlen(argv[1]));  // remove % sign 
-        int jid = atoi(argv[1]);
-        pid = getPIDByJID(jid);         
-    }
-    else{
-        pid = atoi(argv[1]);        // get pid in case argument is pid
-    }
+void killJob(pid_t pid) {
+
     // send kill SIGKILL signal to terminate job
     kill(pid, SIGKILL);
 
@@ -179,7 +150,7 @@ void printAllCurrentJobs() {
             printf("Available");
             break;
         }
-        puts(jobList[i].cmd);
+        printf("%s\n", jobList[i].cmd);
     }
 }
 void distributeInput(char* input, int* argc, char** argv) {
@@ -192,43 +163,50 @@ void distributeInput(char* input, int* argc, char** argv) {
     }
 }
 
-
 void eval(char **argv, int argc, working_Space space, char* cmdLine, char* inputFile, char* outputFile){
 
     char cwd[MAX_LINE];     // store current working directory path
 
     // Built-in commands
-    
-    if (strcmp(argv[0], "cd") == 0) {
-        chdir(argv[1]);
-    }
-    else if (strcmp(argv[0], "pwd") == 0) {
-        printf("%s\n", getcwd(cwd,sizeof(cwd)));
-    }
-    else if (strcmp(argv[0], "quit") == 0) {
-        exit(0);
-    }
-    else if (strcmp(argv[0], "jobs") == 0) { 
-        printBgJobs(space,outputFile);
-        if(space == WP_REDIRECT_OUTPUT || space == WP_APPEND_OUTPUT){
-            
+    if (strcmp(argv[0], "cd") == 0 || strcmp(argv[0], "pwd") == 0 || strcmp(argv[0], "quit") == 0 || (strcmp(argv[0], "jobs") == 0 ||
+        strcmp(argv[0], "list") == 0) || strcmp(argv[0], "fg") == 0 || strcmp(argv[0], "bg") == 0 || strcmp(argv[0], "kill") == 0 ) {
+        if (strcmp(argv[0], "cd") == 0) {
+            chdir(argv[1]);
+        }
+        else if (strcmp(argv[0], "pwd") == 0) {
+            printf("%s\n", getcwd(cwd,sizeof(cwd)));
+        }
+        else if (strcmp(argv[0], "quit") == 0) {
+            exit(0);
+        }
+        else if (strcmp(argv[0], "jobs") == 0) { 
+            printBgJobs(space,outputFile);
+        }
+        // added for testing
+        else if(strcmp(argv[0], "list") == 0) {
+            printAllCurrentJobs();
+        }
+        // fg bg and kill are merged into one else if condition
+        else if (strcmp(argv[0], "fg") == 0 || strcmp(argv[0], "bg") == 0 || strcmp(argv[0], "kill") == 0){  // switch job's working spaces: fg -> bg or bg -> fg 
+            pid_t pid;
+            // get pid directly or from job id
+            if(argv[1][0] == '%'){ 
+                memmove(argv[1], argv[1]+1, strlen(argv[1]));  // remove % sign 
+                int jid = atoi(argv[1]);
+                pid = getPIDByJID(jid);         
+            }
+            else{
+                pid = atoi(argv[1]);        // get pid in case argument is pid
+            }
+            if (strcmp(argv[0],"kill") == 0) {
+                killJob(pid);
+            }                                                                                
+            else {      // these jobs are already stopped before switching
+                switchWorkingSpace(argc, argv, space, pid);     // just need to put in either jobID or pid and then switchWorkingSpace() will handle it 
+            }
         }
     }
-    // added for testing
-    else if(strcmp(argv[0], "list") == 0) {
-        printAllCurrentJobs();
-    }
-
-    // fg bg and kill will be merged into one else if condition
-
-    else if (strcmp(argv[0], "fg") == 0 || strcmp(argv[0], "bg") == 0){  // switch job's working spaces: fg -> bg or bg -> fg 
-                                                                    // these jobs are already stopped before switching
-        switchWorkingSpace(argc, argv, space);     // just need to put in either jobID or pid and then switchWorkingSpace() will handle it 
-    }
-    else if(strcmp(argv[0],"kill") == 0){
-        killJob(argc,argv);
-    }
-    // not a built-in command. Change to another stage
+    // not a built-in command
     else {     // run as an executable command
         
         pid_t pid;       
@@ -411,7 +389,7 @@ void fileScanner(int argc, char** argv, char* inputFile, char* outputFile) {
 int main() {
      
     char input[MAX_LINE];   // Input from user. Each argument is seperated by a space or tab character 
-    char cmdLine[MAX_LINE]; //copy of input since input gets changed to strtok
+    char cmdLine[MAX_LINE]; // Copy of input since input gets changed to strtok
     int argc;               // Number of arguments from the input
     char* argv[MAX_LINE];   // List of arguments. First argument would be the command
     char inputFile[MAX_LINE];   // input file for reading from a file
@@ -426,6 +404,8 @@ int main() {
     while(1) //loop until quit is entered
     {
         fflush(stdin);
+        fflush(stdout);
+
         argc = 0;   // reset number of arguments every time getting a new input
         printf("prompt >");
 
@@ -443,8 +423,11 @@ int main() {
         if(feof(stdin)){
             exit(0);
         }
+
         eval(argv, argc, space, cmdLine, inputFile, outputFile);     // evaluate the list of arguments
+        
         fflush(stdin);
+        fflush(stdout);
 
         
     }
