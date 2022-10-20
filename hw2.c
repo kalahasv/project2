@@ -198,6 +198,7 @@ void eval(char **argv, int argc, working_Space space, char* cmdLine, char* input
     char cwd[MAX_LINE];     // store current working directory path
 
     // Built-in commands
+    
     if (strcmp(argv[0], "cd") == 0) {
         chdir(argv[1]);
     }
@@ -223,7 +224,6 @@ void eval(char **argv, int argc, working_Space space, char* cmdLine, char* input
     else if (strcmp(argv[0], "fg") == 0 || strcmp(argv[0], "bg") == 0){  // switch job's working spaces: fg -> bg or bg -> fg 
                                                                     // these jobs are already stopped before switching
         switchWorkingSpace(argc, argv, space);     // just need to put in either jobID or pid and then switchWorkingSpace() will handle it 
-        
     }
     else if(strcmp(argv[0],"kill") == 0){
         killJob(argc,argv);
