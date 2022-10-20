@@ -68,12 +68,6 @@ void constructJobs() {   // Construct a default list of jobs
     }
 }
 
-void pauseCurrentFGJob(pid_t pid) { //pauses the current foreground job
-    while (pid) {
-        sleep(0);
-    }
-}
-
 void printBgJobs( working_Space space, char* outputFile){
     static const char *STATUS_STRING[] = {"Running", "Stopped"};
     int outFile = -1;    // output file descriptor
@@ -134,9 +128,6 @@ void switchWorkingSpace(int argc, char** argv, enum working_Space space){
     else{
         pid = atoi(argv[1]);        // get pid in case argument is pid
     }
-    //seperate method but idk if that's redundant 
-    //and we should just check here bc we get the pid here anyways
-
     // need to put the job back into running status
     if (kill(pid, SIGCONT) < 0) {           // fail to continue a job
         printf("Job with pid %d fails to continue\n", pid);
@@ -201,16 +192,6 @@ void distributeInput(char* input, int* argc, char** argv) {
     }
 }
 
-void distributeFileInput(char* input, int* argc, char** argv){
-    printf("Distribute file input\n");
-    char program_name[MAX_LINE];
-    strcpy(program_name,argv[0]);   //copy argv[0] into a string 
-    memset(*argv, 0, sizeof(argv)); //clear argv
-    argv[0] = program_name;         //set first argv back to program name
-    printf("in dist argv[0]: %s\n",argv[0]);
-    *argc = 1;
-    distributeInput(input,argc,argv);
-}
 
 void eval(char **argv, int argc, working_Space space, char* cmdLine, char* inputFile, char* outputFile){
 
@@ -227,10 +208,9 @@ void eval(char **argv, int argc, working_Space space, char* cmdLine, char* input
         exit(0);
     }
     else if (strcmp(argv[0], "jobs") == 0) { 
-        //printf("Calling jobs function");
         printBgJobs(space,outputFile);
-        if(space == WP_REDIRECT_OUTPUT || space ==WP_APPEND_OUTPUT){
-        
+        if(space == WP_REDIRECT_OUTPUT || space == WP_APPEND_OUTPUT){
+            
         }
     }
     // added for testing
@@ -251,113 +231,76 @@ void eval(char **argv, int argc, working_Space space, char* cmdLine, char* input
     // not a built-in command. Change to another stage
     else {     // run as an executable command
         
-        pid_t pid;        
-        //sigset_t set;
-        //printf("Parent pid is %d \n", pid);
-        //sigemptyset(&set); 
-        //sigaddset(&set, SIGCHLD);
-        //sigprocmask(SIG_BLOCK, &set, NULL);
+        pid_t pid;       
+        char* newArgv[MAX_LINE]; 
 
         argv[argc] = NULL;
         if ((pid = fork()) == 0) {      // child process is successfully spawned. child's pid to the parent process  
-
-            //sigprocmask(SIG_UNBLOCK, &set, NULL);
 
             // following the discussion sample
             int inFile = -1;     // input file descriptor
             int outFile = -1;    // output file descriptor
             mode_t mode = S_IRWXU | S_IRWXG | S_IRWXO;  // mode fore setting permission bits
-            char redir_input_str[MAX_LINE];
 
             if (space == WP_REDIRECT_INPUT) {       // redirect standard input from a file
-                printf(" redirect file is about to work\n");
-                
-
                 inFile = open(inputFile, O_RDONLY, mode);   // open the inputFile
-                //printf("infileID %d", inFile);
                 dup2(inFile, STDIN_FILENO);         // dup the file descriptor to point to STDIN to the input file
-                close(inFile);    
-                /*
-                fgets(redir_input_str,MAX_LINE,stdin);
-                printf("New Input String: %s\n",redir_input_str);   
-                distributeFileInput(redir_input_str,&argc,argv);  
-                */
-                //printf("TEST ARGV CONTENT FOR NUMBER.TXT: %s, %s\n",argv[0],argv[1]);       
+                close(inFile);           
             }
 
-            else if (space == WP_REDIRECT_OUTPUT) {      // redirect + overwrite standard output to a file
-                outFile = open(outputFile, O_CREAT|O_WRONLY|O_TRUNC, mode);
-                dup2(outFile, STDOUT_FILENO);
-            }
-
-            else if(space == WP_APPEND_OUTPUT){     // append standard output to a file 
-                outFile = open(outputFile, O_CREAT|O_APPEND|O_WRONLY,mode); 
-                dup2(outFile, STDOUT_FILENO);
-            }
-            
-            else if(space == WP_IN_OUT){
-                printf("in and out function");
-                inFile = open(inputFile, O_RDONLY, mode);   // open the inputFile
-                dup2(inFile, STDIN_FILENO); 
-                close(inFile);    
-
-                /*
-                fgets(redir_input_str,MAX_LINE,stdin);
-                printf("New Input String that is going to distrubted to argv: %s\n",redir_input_str);   
-                distributeFileInput(redir_input_str,&argc,argv); 
-                printf("ARGV CONTENT:");
-                for(int i = 0; i < argc;i++){
-                    printf("%s,",argv[i]);
+            else if (space == WP_REDIRECT_OUTPUT || space == WP_APPEND_OUTPUT) {      // redirect + overwrite standard output to a file
+                if (space == WP_REDIRECT_OUTPUT) {
+                    outFile = open(outputFile, O_CREAT|O_WRONLY|O_TRUNC, mode);
                 }
-                printf("\n");
-                */
-                outFile = open(outputFile, O_CREAT|O_WRONLY|O_TRUNC, mode);
+                else { // append output 
+                    outFile = open(outputFile, O_CREAT|O_APPEND|O_WRONLY,mode);
+                }
                 dup2(outFile, STDOUT_FILENO);
-                
-
             }
             
-            else if(space == WP_IN_OUT_APPEND){
+            else if(space == WP_IN_OUT || space == WP_IN_OUT_APPEND){
                 inFile = open(inputFile, O_RDONLY, mode);   // open the inputFile
-                dup2(inFile, STDIN_FILENO);         // dup the file descriptor to point to STDIN to the input file
-                close(inFile);
-                /*
-                fgets(redir_input_str,MAX_LINE,stdin);
-                printf("New Input String: %s\n",redir_input_str);   
-                distributeFileInput(redir_input_str,&argc,argv); 
-                */
-
-                outFile = open(outputFile, O_CREAT|O_APPEND|O_WRONLY,mode); 
-                dup2(outFile, STDOUT_FILENO); 
-                
-
+                dup2(inFile, STDIN_FILENO);         
+                close(inFile);    
+                if (space == WP_IN_OUT) {
+                    outFile = open(outputFile, O_CREAT|O_WRONLY|O_TRUNC, mode);
+                }
+                else {
+                    outFile = open(outputFile, O_CREAT|O_APPEND|O_WRONLY,mode); 
+                }
+                dup2(outFile, STDOUT_FILENO);
             }
 
-            //printf("child pid is %d \n", pid);
-            if(execv(argv[0], argv) < 0){       // Negative value means it didn't work - try execv first
-               if(execvp(argv[0],argv) < 0){    // Otherwise, try with execvp
-                    printf("%s: Command not found.\n",argv[0]);
+            if (strcmp("ls", argv[0]) == 0 || strcmp("sort", argv[0]) == 0 || strcmp("cat", argv[0]) == 0) {    // for basic command and redirect input
+                newArgv[0] = argv[0];
+                newArgv[1] = NULL;
+                if (execvp(newArgv[0], newArgv) < 0) {
+                    printf("%s: command not found.\n", argv[0]);
                     exit(0);
+                }
             }
+            else {
+            // excecute the executables
+                if(execv(argv[0], argv) < 0){       // Negative value means it didn't work - try execv first
+                    if(execvp(argv[0],argv) < 0){    // Otherwise, try with execvp
+                        printf("%s: Command not found.\n",argv[0]);
+                        exit(0);
+                    }
+                }
             }
         }
         else if (pid < 0) {
             printf("Spawning child process unsuccessful! \n");
         }
         else {      // parent process
-            printf("parent id: %d\n", pid);
-            if(space == WP_BACKGROUND){             // create new background job 
-                if(strcmp(argv[1], "&") == 0) {     // no need to check this again since we already have space
-                    printf("New background job.\n");
+            if(space == WP_BACKGROUND){             // add new background job 
                     addJob(pid, BACKGROUND,cmdLine);   
-                }
             }
             else{
-                printf("New foreground job.\n"); // create new foreground job
+                // add new foreground job
                 addJob(pid, FOREGROUND,cmdLine);
             }
-            if (space == WP_FOREGROUND) { // pause if foreground otherwise said for sigchld
-                //pauseCurrentFGJob(pid);
+            if (space == WP_FOREGROUND) {           // pause if foreground otherwise said for sigchld
                 pause(); 
             }
         } 
@@ -379,7 +322,6 @@ pid_t currentFGJobPID() {
 void interruptHandler(int signalNum) {        // only interrupts current FG job
 
     pid_t pid = currentFGJobPID();
-    //printf("current pid that needs to be interrupted: %d\n", pid);
 
     if (pid > 0) {
         kill(-pid, SIGINT);
@@ -391,7 +333,7 @@ void interruptHandler(int signalNum) {        // only interrupts current FG job
 void stopHandler(int signalNum) {               // only stops current FG job
 
     pid_t pid = currentFGJobPID();
-    //printf("current pid that needs to be stopped: %d\n", pid);
+    
     if (pid > 0) {
         kill(pid, SIGTSTP);
         changeJobStatus(pid, STOPPED);
@@ -402,7 +344,7 @@ void sigchdHandler(int signalNum) {
     int status = 0;
     pid_t pid = 0;
     while ((pid = waitpid(currentFGJobPID(), &status, WNOHANG | WUNTRACED)) > 0) {
-        //printf("child pid in sigchd: %d\n", pid);
+        
         if (WIFSIGNALED(status)) {      // child process has terminated by a signal. Ctrl + C
             interruptHandler(SIGINT);
         }
@@ -419,18 +361,15 @@ void sigchdHandler(int signalNum) {
 
 working_Space checkInput(int* argc, char **argv) {
     working_Space space = WP_FOREGROUND;
-    int count = 0;
-    int input_check = 0;
+    int input_check = 0;    // for checking if we need to work with infile and outfile
+
     for (int i = 0; i < *argc; i++) {
         if (strcmp(argv[i], "&") == 0) {     // Background space
             space = WP_BACKGROUND;
         }  
         else if (strcmp(argv[i], "<") == 0) {    // redirect input
-            printf("redirect input\n");
             input_check = 1;
             space = WP_REDIRECT_INPUT;
-            count++;
-
         }
         else if (strcmp(argv[i], ">") == 0) {      // reidrect output
             if(input_check == 1){
@@ -439,7 +378,6 @@ working_Space checkInput(int* argc, char **argv) {
             else{
                 space = WP_REDIRECT_OUTPUT;
             }
-            count++;
         }
         else if (strcmp(argv[i], ">>") == 0) {      // use to displace stuff by job ID
             if(input_check == 1){
@@ -452,14 +390,10 @@ working_Space checkInput(int* argc, char **argv) {
         }
     }
 
-    if(count > 1) {     // in case both < and > are in the argv[]. here is checking for read input from inputFile and redirect output to outputFile
-        // set in&Out to true
-    }
-
     return space;
 }
 
-void fileScanner(int argc, char** argv, char* inputFile, char* outputFile) {        // NEED TO GET THIS SHIT TO WORK
+void fileScanner(int argc, char** argv, char* inputFile, char* outputFile) {        
     for (int i = argc - 1; i >= 0; i--) {   // loop backward to get file
         if (strcmp(argv[i], "<") == 0) {
             if (i + 1 < argc) {     // ... < inFile. < is at argv[i]. inFile will be at argv[i + 1].
@@ -473,28 +407,6 @@ void fileScanner(int argc, char** argv, char* inputFile, char* outputFile) {    
         }
     }
 }
-
-/*void changeFileArguments(int* argc, char** argv, char* inputFile, char* outputFile) {
-    bool f = false;
-    for (int i = argc - 1; i >= 0; i--) {
-        if (argv[i][0] == '<') {
-            if (i + 1 < argc)
-                strcpy(inputFile, argv[i + 1]);
-            f = true;
-        }
-        else if (argv[i][0] == '<') {
-            if (i + 1 < argc)
-                strcpy(outputFile, argv[i + 1]);
-            f = true;
-        }
-        if (f) {
-            for (int j = i + 2; j <= argc; j++) {
-                arvg[j-2] = argv[j];
-            }
-            argc -= 2;
-    }
-}*/
-
 
 int main() {
      
@@ -518,16 +430,15 @@ int main() {
         printf("prompt >");
 
         fgets(input, MAX_LINE, stdin);          // Get user input
-        strcpy(cmdLine,input); //make a copy & store in cmdLine
+        strcpy(cmdLine,input);  //  make a copy & store in cmdLine
         distributeInput(input, &argc, argv);    // Distribute arguments from user input
-        needs_In_N_Out = 0; //reset to 0 everytime
+        needs_In_N_Out = 0;     //  reset to 0 everytime
+
         // check input to see if in bg, or on shell or to redicted files
         working_Space space = checkInput(&argc, argv);
         
-        
+        // Scan file names
         fileScanner(argc, argv, inputFile, outputFile);
-        //printf("infile: %s outfile: %s\n", inputFile, outputFile);
-        //changeFileArguments(argc, argv, inputFile, outputFile);
 
         if(feof(stdin)){
             exit(0);
